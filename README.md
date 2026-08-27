@@ -18,6 +18,30 @@ switches it to `151k/200k 75%`, tokens only, percent only, or bar only.
 
 Each meter turns amber at its warning threshold and red at its critical threshold.
 
+## Install
+
+Not on the Marketplace yet, so install the `.vsix` build:
+
+```sh
+git clone https://github.com/MorelCorp/vscode-claude-monitor.git
+cd vscode-claude-monitor
+npm install
+npm run package        # writes claude-usage-monitor-<version>.vsix
+code --install-extension claude-usage-monitor-0.1.0.vsix
+```
+
+Then reload VS Code. On first start the extension offers to **connect to Claude Code**;
+accept it, or run **Claude Monitor: Connect to Claude Code** from the Command Palette.
+Restart any Claude Code sessions that were already open — they keep using the old status
+line until they do.
+
+If you prefer clicking: **Extensions** view → `...` menu → **Install from VSIX...**.
+For Cursor, Windsurf, or VS Code Insiders substitute the matching CLI
+(`cursor --install-extension ...`), or use the same VSIX menu.
+
+To try it without installing, open the repo in VS Code and press <kbd>F5</kbd> for an
+Extension Development Host.
+
 ## Where the numbers come from
 
 Claude Code pipes a JSON blob into whatever command is configured as its
@@ -113,6 +137,7 @@ be overridden in `workbench.colorCustomizations`.
 npm install
 npm run compile
 npm test           # node:test unit tests
+npm run package    # build a .vsix
 ```
 
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host.
