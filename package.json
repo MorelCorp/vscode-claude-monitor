@@ -1,0 +1,264 @@
+{
+  "name": "claude-usage-monitor",
+  "displayName": "Claude Usage Monitor",
+  "description": "Status bar meters for Claude Code subscription usage: context window, 5-hour session limit and 7-day weekly limit.",
+  "version": "0.1.0",
+  "publisher": "morelcorp",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "usage",
+    "rate limit",
+    "context window"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MorelCorp/vscode-claude-monitor.git"
+  },
+  "main": "./out/src/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeMonitor.showDetails",
+        "title": "Claude Monitor: Show Usage Details"
+      },
+      {
+        "command": "claudeMonitor.installBridge",
+        "title": "Claude Monitor: Connect to Claude Code"
+      },
+      {
+        "command": "claudeMonitor.uninstallBridge",
+        "title": "Claude Monitor: Disconnect from Claude Code"
+      },
+      {
+        "command": "claudeMonitor.refresh",
+        "title": "Claude Monitor: Refresh Now"
+      },
+      {
+        "command": "claudeMonitor.openSettings",
+        "title": "Claude Monitor: Open Settings"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Usage Monitor",
+      "properties": {
+        "claudeMonitor.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Claude usage meters in the status bar."
+        },
+        "claudeMonitor.segments": {
+          "type": "array",
+          "default": ["session", "week", "context"],
+          "items": {
+            "type": "string",
+            "enum": ["session", "week", "context"],
+            "enumDescriptions": [
+              "5-hour rolling session limit",
+              "7-day weekly limit",
+              "Context window of the current conversation"
+            ]
+          },
+          "uniqueItems": true,
+          "markdownDescription": "Which meters to show, in left-to-right order."
+        },
+        "claudeMonitor.style": {
+          "type": "string",
+          "default": "dots",
+          "enum": ["dots", "blocks", "ascii", "percent"],
+          "enumDescriptions": [
+            "Filled/empty circles, e.g. ●●●○○",
+            "Block characters, e.g. ███░░",
+            "Bracketed ASCII, e.g. [###--]",
+            "No bar, percentage only"
+          ],
+          "description": "How each progress bar is drawn."
+        },
+        "claudeMonitor.barLength": {
+          "type": "number",
+          "default": 5,
+          "minimum": 3,
+          "maximum": 20,
+          "description": "Number of cells in each progress bar."
+        },
+        "claudeMonitor.showPercentage": {
+          "type": "boolean",
+          "default": false,
+          "description": "Print the numeric percentage next to each bar."
+        },
+        "claudeMonitor.showResetCountdown": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show time remaining until the 5-hour and 7-day windows reset."
+        },
+        "claudeMonitor.showLabel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the leading 'Claude' label item."
+        },
+        "claudeMonitor.warningThreshold": {
+          "type": "number",
+          "default": 70,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Percentage at or above which a limit meter turns to the warning colour."
+        },
+        "claudeMonitor.criticalThreshold": {
+          "type": "number",
+          "default": 90,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Percentage at or above which a limit meter turns to the critical colour."
+        },
+        "claudeMonitor.contextWarningThreshold": {
+          "type": "number",
+          "default": 75,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Context-window percentage at or above which the context meter turns to the warning colour."
+        },
+        "claudeMonitor.contextCriticalThreshold": {
+          "type": "number",
+          "default": 90,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Context-window percentage at or above which the context meter turns to the critical colour."
+        },
+        "claudeMonitor.highlightBackground": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also paint the status bar item background when a meter is critical. Loud, but hard to miss."
+        },
+        "claudeMonitor.notifications": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["off", "critical", "warning"],
+          "enumDescriptions": [
+            "Never pop a notification",
+            "Notify when a limit first crosses the critical threshold",
+            "Notify when a limit first crosses the warning threshold"
+          ],
+          "description": "Pop a notification when usage crosses a threshold."
+        },
+        "claudeMonitor.alignment": {
+          "type": "string",
+          "default": "right",
+          "enum": ["left", "right"],
+          "description": "Which side of the status bar to dock the meters on."
+        },
+        "claudeMonitor.priority": {
+          "type": "number",
+          "default": 100,
+          "description": "Status bar priority. Higher values sit further to the left."
+        },
+        "claudeMonitor.contextSource": {
+          "type": "string",
+          "default": "workspace",
+          "enum": ["workspace", "any"],
+          "enumDescriptions": [
+            "Only show the context window of Claude Code sessions running in this workspace",
+            "Show the context window of the most recently active session anywhere"
+          ],
+          "description": "Which Claude Code session the context meter follows. Session and weekly limits are account-wide and always come from the most recent session."
+        },
+        "claudeMonitor.staleAfterMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "description": "Dim the meters when no Claude Code session has reported for this many minutes."
+        },
+        "claudeMonitor.hideWhenNoData": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hide the meters entirely instead of dimming them when there is no recent data."
+        },
+        "claudeMonitor.transcriptFallback": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When the bridge has not reported yet, estimate the context window by reading the session transcript in `~/.claude/projects`. Rate limits cannot be estimated this way."
+        },
+        "claudeMonitor.pollIntervalSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 300,
+          "description": "How often to re-read usage snapshots, in addition to filesystem watch events."
+        },
+        "claudeMonitor.promptToConnect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offer to connect to Claude Code on startup when the bridge is not installed."
+        }
+      }
+    },
+    "colors": [
+      {
+        "id": "claudeMonitor.normalForeground",
+        "description": "Colour of a usage meter below the warning threshold.",
+        "defaults": {
+          "dark": "statusBar.foreground",
+          "light": "statusBar.foreground",
+          "highContrast": "statusBar.foreground"
+        }
+      },
+      {
+        "id": "claudeMonitor.warningForeground",
+        "description": "Colour of a usage meter at or above the warning threshold.",
+        "defaults": {
+          "dark": "#e2c08d",
+          "light": "#a1701c",
+          "highContrast": "#e2c08d"
+        }
+      },
+      {
+        "id": "claudeMonitor.criticalForeground",
+        "description": "Colour of a usage meter at or above the critical threshold.",
+        "defaults": {
+          "dark": "#f14c4c",
+          "light": "#c72e2e",
+          "highContrast": "#f14c4c"
+        }
+      },
+      {
+        "id": "claudeMonitor.contextForeground",
+        "description": "Colour of the context window meter below its warning threshold.",
+        "defaults": {
+          "dark": "#4daafc",
+          "light": "#1a6bb8",
+          "highContrast": "#4daafc"
+        }
+      },
+      {
+        "id": "claudeMonitor.staleForeground",
+        "description": "Colour of the meters when the data is stale.",
+        "defaults": {
+          "dark": "statusBar.foreground",
+          "light": "statusBar.foreground",
+          "highContrast": "statusBar.foreground"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && node --test out/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.5.4"
+  }
+}
