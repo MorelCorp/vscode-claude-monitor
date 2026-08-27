@@ -50,6 +50,8 @@ export function buildUsageModel(snapshots: Snapshot[], options: BuildOptions): U
       id: 'context',
       label: 'Tk',
       percent: context.used_percentage,
+      usedTokens: used,
+      totalTokens: size,
       level: levelFor(
         context.used_percentage,
         options.contextWarningThreshold,
@@ -70,6 +72,8 @@ export function buildUsageModel(snapshots: Snapshot[], options: BuildOptions): U
         id: 'context',
         label: 'Tk',
         percent: fallback.percent,
+        usedTokens: fallback.usedTokens,
+        totalTokens: fallback.contextWindowSize,
         level: levelFor(
           fallback.percent,
           options.contextWarningThreshold,

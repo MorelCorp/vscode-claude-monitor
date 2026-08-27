@@ -4,14 +4,17 @@ Status bar meters for [Claude Code](https://claude.com/claude-code) usage, for C
 subscription accounts.
 
 ```
-Claude   Se ●●○○○ ⏱ 20m   Wk ●●●●○ ⏱ 3d 2h   Tk ●●●○○
+Claude   Se ●●○○○ ⏱ 20m   Wk ●●●●○ ⏱ 3d 2h   Tk ●●●○○ 151k 75%
 ```
 
 | Meter | Shows |
 |---|---|
-| `Se` | 5-hour session limit, and when the window resets |
-| `Wk` | 7-day weekly limit, and when the window resets |
-| `Tk` | Context window of the Claude Code conversation running in this workspace |
+| `Se` | 5-hour session limit — % used, and time left in the window |
+| `Wk` | 7-day weekly limit — % used, and time left in the window |
+| `Tk` | Context window of the Claude Code conversation in this workspace — tokens used and % of the window |
+
+`Tk` prints the live token count next to its bar (`151k 75%`). `claudeMonitor.contextDisplay`
+switches it to `151k/200k 75%`, tokens only, percent only, or bar only.
 
 Each meter turns amber at its warning threshold and red at its critical threshold.
 
@@ -74,8 +77,9 @@ anywhere; the extension only reads local files.
 | `claudeMonitor.segments` | `["session","week","context"]` | Which meters, in order |
 | `claudeMonitor.style` | `dots` | `dots` `blocks` `ascii` `percent` |
 | `claudeMonitor.barLength` | `5` | Cells per bar |
-| `claudeMonitor.showPercentage` | `false` | Print the number next to the bar |
+| `claudeMonitor.showPercentage` | `false` | Print the number next to the `Se`/`Wk` bars |
 | `claudeMonitor.showResetCountdown` | `true` | Show time until each window resets |
+| `claudeMonitor.contextDisplay` | `tokens+percent` | `tokens+percent` `tokens-of-limit` `tokens` `percent` `none` |
 | `claudeMonitor.showLabel` | `true` | Show the leading `Claude` item |
 | `claudeMonitor.warningThreshold` | `70` | Amber at or above this % |
 | `claudeMonitor.criticalThreshold` | `90` | Red at or above this % |

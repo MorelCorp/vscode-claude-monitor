@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MonitorConfig, layoutKey } from './config';
-import { bar, formatDuration, formatPercent, worstLevel } from './render';
+import { bar, contextReadout, formatDuration, formatPercent, worstLevel } from './render';
 import { Level, Metric, MetricId, UsageModel } from './types';
 
 const COLORS: Record<Level, string> = {
@@ -113,12 +113,28 @@ function renderMetric(metric: Metric, config: MonitorConfig): string {
   if (drawn.length > 0) {
     parts.push(drawn);
   }
-  if (config.showPercentage || config.style === 'percent') {
-    parts.push(formatPercent(metric.percent));
+
+  if (metric.id === 'context') {
+    // The context meter reads out its own token count; `showPercentage` governs the
+    // rate limit meters, which have no token count to show.
+    const readout = contextReadout(
+      metric.usedTokens,
+      metric.totalTokens,
+      metric.percent,
+      config.contextDisplay,
+    );
+    if (readout.length > 0) {
+      parts.push(readout);
+    }
+  } else {
+    if (config.showPercentage || config.style === 'percent') {
+      parts.push(formatPercent(metric.percent));
+    }
+    if (config.showResetCountdown && metric.resetsInSeconds !== undefined) {
+      parts.push(`$(history) ${formatDuration(metric.resetsInSeconds)}`);
+    }
   }
-  if (config.showResetCountdown && metric.resetsInSeconds !== undefined) {
-    parts.push(`$(history) ${formatDuration(metric.resetsInSeconds)}`);
-  }
+
   return parts.join(' ');
 }
 

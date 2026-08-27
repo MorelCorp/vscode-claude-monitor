@@ -70,6 +70,10 @@ export interface Metric {
   resetsInSeconds?: number;
   /** Absolute reset time in epoch milliseconds. */
   resetsAt?: number;
+  /** Tokens currently occupying the context window. Context metric only. */
+  usedTokens?: number;
+  /** Size of the context window the tokens are measured against. Context metric only. */
+  totalTokens?: number;
   level: Level;
   /** Human-readable detail lines for the tooltip. */
   detail: string[];

@@ -3,6 +3,8 @@
 ## 0.1.0
 
 - Status bar meters for the 5-hour session limit, 7-day weekly limit and context window.
+- The context meter prints its live token count alongside the percentage, configurable
+  via `claudeMonitor.contextDisplay`.
 - Status line bridge that snapshots Claude Code's own usage JSON, chaining through to any
   previously configured status line command.
 - Warning and critical thresholds with per-meter colouring, optional background

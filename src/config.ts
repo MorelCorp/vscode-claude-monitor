@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BarStyle } from './render';
+import { BarStyle, ContextDisplay } from './render';
 import { MetricId } from './types';
 
 export interface MonitorConfig {
@@ -9,6 +9,7 @@ export interface MonitorConfig {
   barLength: number;
   showPercentage: boolean;
   showResetCountdown: boolean;
+  contextDisplay: ContextDisplay;
   showLabel: boolean;
   warningThreshold: number;
   criticalThreshold: number;
@@ -43,6 +44,7 @@ export function readConfig(): MonitorConfig {
     barLength: clamp(c.get<number>('barLength', 5), 3, 20),
     showPercentage: c.get<boolean>('showPercentage', false),
     showResetCountdown: c.get<boolean>('showResetCountdown', true),
+    contextDisplay: c.get<ContextDisplay>('contextDisplay', 'tokens+percent'),
     showLabel: c.get<boolean>('showLabel', true),
     warningThreshold: clamp(c.get<number>('warningThreshold', 70), 1, 100),
     criticalThreshold: clamp(c.get<number>('criticalThreshold', 90), 1, 100),

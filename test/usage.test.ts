@@ -1,4 +1,7 @@
 import { strict as assert } from 'node:assert';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { test } from 'node:test';
 import { buildUsageModel, BuildOptions } from '../src/usage';
 import { Snapshot, StatusLinePayload } from '../src/types';
@@ -56,6 +59,8 @@ test('maps a full payload onto the three meters', () => {
   const context = model.metrics.find((m) => m.id === 'context')!;
   assert.equal(context.percent, 75);
   assert.equal(context.level, 'warning');
+  assert.equal(context.usedTokens, 150_000);
+  assert.equal(context.totalTokens, 200_000);
 
   assert.equal(model.stale, false);
   assert.equal(model.estimated, false);
@@ -126,4 +131,51 @@ test('a context window reported as null is treated as unknown', () => {
   };
   const model = buildUsageModel([snapshot(payload)], options());
   assert.equal(model.metrics.find((m) => m.id === 'context')!.percent, undefined);
+});
+
+test('the transcript fallback carries a token count too', (t) => {
+  const original = process.env.CLAUDE_CONFIG_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-monitor-'));
+  t.after(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    if (original === undefined) {
+      delete process.env.CLAUDE_CONFIG_DIR;
+    } else {
+      process.env.CLAUDE_CONFIG_DIR = original;
+    }
+  });
+
+  const project = path.join(dir, 'projects', '-tmp-proj');
+  fs.mkdirSync(project, { recursive: true });
+  fs.writeFileSync(
+    path.join(project, 'session.jsonl'),
+    [
+      JSON.stringify({ type: 'user', message: { role: 'user' } }),
+      JSON.stringify({
+        type: 'assistant',
+        sessionId: 's1',
+        message: {
+          model: 'claude-opus-5',
+          usage: {
+            input_tokens: 12,
+            cache_read_input_tokens: 99_988,
+            cache_creation_input_tokens: 0,
+            output_tokens: 0,
+          },
+        },
+      }),
+    ].join('\n') + '\n',
+  );
+  process.env.CLAUDE_CONFIG_DIR = dir;
+
+  const model = buildUsageModel(
+    [],
+    options({ folders: ['/tmp/proj'], transcriptFallback: true }),
+  );
+  const context = model.metrics.find((m) => m.id === 'context')!;
+
+  assert.equal(model.estimated, true);
+  assert.equal(context.usedTokens, 100_000);
+  assert.equal(context.totalTokens, 200_000);
+  assert.equal(context.percent, 50);
 });

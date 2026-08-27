@@ -102,6 +102,19 @@
           "default": true,
           "description": "Show time remaining until the 5-hour and 7-day windows reset."
         },
+        "claudeMonitor.contextDisplay": {
+          "type": "string",
+          "default": "tokens+percent",
+          "enum": ["tokens+percent", "tokens-of-limit", "tokens", "percent", "none"],
+          "enumDescriptions": [
+            "Tokens used and percentage, e.g. 151k 75%",
+            "Tokens used out of the context window, and percentage, e.g. 151k/200k 75%",
+            "Tokens used only, e.g. 151k",
+            "Percentage only, e.g. 75%",
+            "Bar only"
+          ],
+          "description": "What the context window meter prints next to its bar."
+        },
         "claudeMonitor.showLabel": {
           "type": "boolean",
           "default": true,

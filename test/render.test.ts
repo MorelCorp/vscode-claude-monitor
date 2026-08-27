@@ -1,6 +1,14 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { bar, formatDuration, formatPercent, formatTokens, levelFor, worstLevel } from '../src/render';
+import {
+  bar,
+  contextReadout,
+  formatDuration,
+  formatPercent,
+  formatTokens,
+  levelFor,
+  worstLevel,
+} from '../src/render';
 
 test('bar fills proportionally', () => {
   assert.equal(bar(0, 5, 'dots'), '○○○○○');
@@ -64,4 +72,25 @@ test('worstLevel picks the highest', () => {
   assert.equal(worstLevel(['normal', 'warning', 'normal']), 'warning');
   assert.equal(worstLevel(['warning', 'critical']), 'critical');
   assert.equal(worstLevel([]), 'normal');
+});
+
+test('contextReadout prints tokens and percentage by default', () => {
+  assert.equal(contextReadout(150_711, 200_000, 75.4, 'tokens+percent'), '151k 75%');
+});
+
+test('contextReadout honours each display mode', () => {
+  assert.equal(contextReadout(150_711, 200_000, 75.4, 'tokens-of-limit'), '151k/200k 75%');
+  assert.equal(contextReadout(150_711, 200_000, 75.4, 'tokens'), '151k');
+  assert.equal(contextReadout(150_711, 200_000, 75.4, 'percent'), '75%');
+  assert.equal(contextReadout(150_711, 200_000, 75.4, 'none'), '');
+});
+
+test('contextReadout still says something when the token count is unknown', () => {
+  assert.equal(contextReadout(undefined, undefined, undefined, 'tokens+percent'), '--%');
+  assert.equal(contextReadout(undefined, undefined, undefined, 'tokens'), '--%');
+  assert.equal(contextReadout(undefined, undefined, undefined, 'none'), '');
+});
+
+test('contextReadout falls back to a bare token count without a known window size', () => {
+  assert.equal(contextReadout(150_711, undefined, 75.4, 'tokens-of-limit'), '151k 75%');
 });

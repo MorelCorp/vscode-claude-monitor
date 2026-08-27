@@ -81,6 +81,37 @@ export function formatTokens(tokens: number | undefined): string {
   return `${Math.round(tokens)}`;
 }
 
+export type ContextDisplay = 'tokens+percent' | 'tokens-of-limit' | 'tokens' | 'percent' | 'none';
+
+/**
+ * The text the context meter prints next to its bar: `151k 75%`, `151k/200k 75%`,
+ * `151k`, `75%`, or nothing.
+ */
+export function contextReadout(
+  usedTokens: number | undefined,
+  totalTokens: number | undefined,
+  percent: number | undefined,
+  display: ContextDisplay,
+): string {
+  if (display === 'none') {
+    return '';
+  }
+
+  const parts: string[] = [];
+  if (display !== 'percent' && usedTokens !== undefined) {
+    parts.push(
+      display === 'tokens-of-limit' && totalTokens !== undefined
+        ? `${formatTokens(usedTokens)}/${formatTokens(totalTokens)}`
+        : formatTokens(usedTokens),
+    );
+  }
+  if (display !== 'tokens') {
+    parts.push(formatPercent(percent));
+  }
+  // Nothing known yet: still read out something rather than leaving a bare label.
+  return (parts.length > 0 ? parts : [formatPercent(percent)]).join(' ');
+}
+
 export function levelFor(percent: number | undefined, warning: number, critical: number): Level {
   if (percent === undefined || !Number.isFinite(percent)) {
     return 'normal';
