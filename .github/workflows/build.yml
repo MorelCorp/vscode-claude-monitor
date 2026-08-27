@@ -14,17 +14,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - run: npm test
       - run: npm run package
       # Downloadable from the run's summary page for ~90 days. Every branch and
       # PR gets one, so a build can be tried out before it is ever tagged.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: claude-usage-monitor-vsix
           path: '*.vsix'
@@ -38,7 +38,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: claude-usage-monitor-vsix
       - name: Publish release
