@@ -209,7 +209,7 @@
           "type": "number",
           "default": 0,
           "minimum": 0,
-          "markdownDescription": "Context window size to measure against, in tokens, when the bridge is not connected. `0` works it out: models marked `[1m]` get 1,000,000, a session that has already passed 200,000 tokens gets 1,000,000, everything else gets 200,000. Transcripts record the model name with the `[1m]` marker stripped, so set this to `1000000` if your sessions run a 1M window and the meter reads high."
+          "markdownDescription": "Context window size to measure against, in tokens, when the bridge is not connected. `0` works it out from the model: the `[1m]` marker wins, then the window Claude Code gives that family (Opus and Fable 1,000,000; Sonnet and Haiku 200,000), then a session already past 200,000 tokens, then 200,000. Set a number here to override all of that."
         },
         "claudeMonitor.rateLimits.source": {
           "type": "string",

@@ -127,12 +127,14 @@ own reading.
 
 ### Caveats
 
-- **The transcript does not record the window size.** It stores the API model name with
-  the 1M marker stripped — `claude-opus-5`, never `claude-opus-5[1m]` — so a 1M session
-  is indistinguishable from a 200K one. Without the bridge the extension checks your
-  configured model for the `[1m]` marker, treats any session already past 200K tokens as
-  1M, and otherwise assumes 200K. If your sessions run a 1M window and `Tk` reads about
-  five times too high, set `claudeMonitor.contextWindowSize` to `1000000`.
+- **The transcript does not record the window size**, only the model name, and with the
+  1M marker stripped — `claude-opus-5`, never `claude-opus-5[1m]`. Without the bridge
+  the size comes from the model instead, in this order: the `[1m]` marker on the model
+  you configured; the window Claude Code gives that family (Opus and Fable 1M, Sonnet
+  and Haiku 200K — Sonnet is a 1M model that Claude Code runs at 200K unless you pick
+  its 1M variant, which carries the marker); a session already past 200K tokens, which
+  has answered the question itself; otherwise 200K. `claudeMonitor.contextWindowSize`
+  overrides the lot, and the tooltip names whichever rule fired.
 - The 5-hour and 7-day meters need a **Claude.ai subscription**. On API-key billing there
   are no such limits and the meters stay empty, with the tooltip saying so.
 - Claude Code sessions that were already running when you connected the bridge keep using

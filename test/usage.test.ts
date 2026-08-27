@@ -183,7 +183,7 @@ test('a context window reported as null is treated as unknown', () => {
   assert.equal(model.metrics.find((m) => m.id === 'context')!.percent, undefined);
 });
 
-test('the transcript fallback carries a token count too', (t) => {
+test('the transcript fallback carries a token count and the right window', (t) => {
   const original = process.env.CLAUDE_CONFIG_DIR;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-monitor-'));
   t.after(() => {
@@ -228,6 +228,8 @@ test('the transcript fallback carries a token count too', (t) => {
 
   assert.equal(model.estimated, true);
   assert.equal(context.usedTokens, 100_000);
-  assert.equal(context.totalTokens, 200_000);
-  assert.equal(context.percent, 50);
+  // Opus ships only with its 1M window, so the transcript's `claude-opus-5` is
+  // enough to size it even though the `[1m]` marker was stripped.
+  assert.equal(context.totalTokens, 1_000_000);
+  assert.equal(context.percent, 10);
 });

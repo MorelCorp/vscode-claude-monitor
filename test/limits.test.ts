@@ -7,6 +7,7 @@ import {
   contextTokens,
   isLargeContextModel,
   resolveContextWindow,
+  windowForFamily,
 } from '../src/transcript';
 
 test('parses the usage endpoint the way Claude Code renders it', () => {
@@ -75,21 +76,47 @@ test('the 1M marker is recognised wherever it appears', () => {
   assert.equal(isLargeContextModel(undefined), false);
 });
 
-test('a 1M session is detected from the configured model, not the transcript', () => {
-  // Transcripts record the API model name with the marker stripped, so the model on
-  // the turn itself says nothing about the window size.
-  const fromTranscript = resolveContextWindow('claude-opus-5', 0, 130_000, undefined);
-  assert.equal(fromTranscript.size, DEFAULT_CONTEXT_WINDOW);
-
-  const fromSettings = resolveContextWindow('claude-opus-5', 0, 130_000, 'opus[1m]');
-  assert.equal(fromSettings.size, LARGE_CONTEXT_WINDOW);
-  assert.equal(fromSettings.source, 'model');
+test('each family gets the window Claude Code gives it, not the model maximum', () => {
+  // Sonnet 5 is a 1M-context model, but Claude Code runs it at 200K unless the 1M
+  // variant is picked — which is why the family table cannot be the API's own.
+  assert.equal(windowForFamily('claude-sonnet-5'), DEFAULT_CONTEXT_WINDOW);
+  assert.equal(windowForFamily('claude-haiku-4-5'), DEFAULT_CONTEXT_WINDOW);
+  assert.equal(windowForFamily('claude-opus-5'), LARGE_CONTEXT_WINDOW);
+  assert.equal(windowForFamily('claude-fable-5'), LARGE_CONTEXT_WINDOW);
+  assert.equal(windowForFamily('opus'), LARGE_CONTEXT_WINDOW);
+  // Pre-5 Opus was offered at 200K too, so it needs the marker like Sonnet does.
+  assert.equal(windowForFamily('claude-opus-4-8'), undefined);
+  assert.equal(windowForFamily('some-other-model'), undefined);
 });
 
-test('a session past 200K tokens has settled the question itself', () => {
-  const resolved = resolveContextWindow('claude-opus-5', 0, 240_000, undefined);
+test('a 1M Opus session is recognised from the transcript alone', () => {
+  // The transcript records `claude-opus-5` with the marker stripped. Opus ships only
+  // with its 1M window, so the family answers what the marker cannot.
+  const resolved = resolveContextWindow('claude-opus-5', 0, 130_000, undefined);
+  assert.equal(resolved.size, LARGE_CONTEXT_WINDOW);
+  assert.equal(resolved.source, 'family');
+});
+
+test('a Sonnet forced to 1M is recognised from the marker', () => {
+  const plain = resolveContextWindow('claude-sonnet-5', 0, 40_000, undefined);
+  assert.equal(plain.size, DEFAULT_CONTEXT_WINDOW);
+  assert.equal(plain.source, 'family');
+
+  const forced = resolveContextWindow('claude-sonnet-5', 0, 40_000, 'sonnet[1m]');
+  assert.equal(forced.size, LARGE_CONTEXT_WINDOW);
+  assert.equal(forced.source, 'marker');
+});
+
+test('a session past 200K tokens overrides a 200K family verdict', () => {
+  const resolved = resolveContextWindow('claude-sonnet-5', 0, 240_000, undefined);
   assert.equal(resolved.size, LARGE_CONTEXT_WINDOW);
   assert.equal(resolved.source, 'observed');
+});
+
+test('an unrecognised model falls back to 200K and says so', () => {
+  const resolved = resolveContextWindow('some-future-model', 0, 1_000, undefined);
+  assert.equal(resolved.size, DEFAULT_CONTEXT_WINDOW);
+  assert.equal(resolved.source, 'default');
 });
 
 test('the setting overrides every other signal', () => {

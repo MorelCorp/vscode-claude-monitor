@@ -1,7 +1,7 @@
 import { hasWindows, LimitsResult } from './limitsApi';
 import { levelFor } from './render';
 import { pickContextSnapshot, pickRateLimitSnapshot } from './stateStore';
-import { estimateContext } from './transcript';
+import { estimateContext, WindowSizeSource } from './transcript';
 import { Metric, MetricSource, RateLimitWindow, Snapshot, UsageModel } from './types';
 
 export interface BuildOptions {
@@ -165,20 +165,19 @@ function currentContextTokens(
   );
 }
 
-function windowSizeNote(
-  size: number,
-  source: 'setting' | 'model' | 'observed' | 'default',
-): string {
+function windowSizeNote(size: number, source: WindowSizeSource): string {
   const pretty = size.toLocaleString();
   switch (source) {
     case 'setting':
       return `Window size ${pretty}, from claudeMonitor.contextWindowSize.`;
-    case 'model':
-      return `Window size ${pretty}, from the configured model.`;
+    case 'marker':
+      return `Window size ${pretty}, from the model's 1M marker.`;
+    case 'family':
+      return `Window size ${pretty}, the window Claude Code gives this model.`;
     case 'observed':
       return `Window size ${pretty}, inferred from a session that already exceeded 200,000 tokens.`;
     default:
-      return `Window size assumed to be ${pretty}. Set claudeMonitor.contextWindowSize if this session runs a 1M window.`;
+      return `Window size assumed to be ${pretty}: unrecognised model. Set claudeMonitor.contextWindowSize if that is wrong.`;
   }
 }
 

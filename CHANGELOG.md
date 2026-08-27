@@ -10,9 +10,11 @@
   `claudeMonitor.rateLimits.refreshSeconds` sets the cadence.
 - **The context meter no longer assumes a 200K window.** Transcripts record the model
   name with the 1M marker stripped, so a 1M session read as 200K and the percentage came
-  out roughly five times too high. The configured model is now checked for the marker, a
-  session already past 200K tokens is taken as 1M, and
-  `claudeMonitor.contextWindowSize` overrides all of it.
+  out roughly five times too high. The size now comes from the model: the `[1m]` marker
+  first, then the window Claude Code gives that family (Opus and Fable 1M; Sonnet and
+  Haiku 200K, since Claude Code runs Sonnet at 200K unless its 1M variant is picked),
+  then a session already past 200K tokens. `claudeMonitor.contextWindowSize` overrides
+  all of it, and the tooltip names whichever rule fired.
 - Context token counts now match Claude Code's own reading: output tokens are excluded,
   and a bridge snapshot reports the tokens currently in the window rather than every
   input token the session has ever sent.

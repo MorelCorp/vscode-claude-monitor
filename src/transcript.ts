@@ -7,7 +7,7 @@ export const DEFAULT_CONTEXT_WINDOW = 200_000;
 export const LARGE_CONTEXT_WINDOW = 1_000_000;
 
 /** How the context window size was arrived at, for the tooltip to own up to. */
-export type WindowSizeSource = 'setting' | 'model' | 'observed' | 'default';
+export type WindowSizeSource = 'setting' | 'marker' | 'family' | 'observed' | 'default';
 
 export interface TranscriptEstimate {
   usedTokens: number;
@@ -178,13 +178,36 @@ function lastAssistantUsage(file: string): UsageEntry | undefined {
 }
 
 /**
+ * The window Claude Code gives each model family.
+ *
+ * Not the same as the window the model supports. Sonnet 5 is a 1M-context model, but
+ * Claude Code runs it at 200K unless you pick the 1M variant from the model picker,
+ * which carries the `[1m]` marker. Opus is only offered with its 1M window, and
+ * Haiku is 200K either way. First match wins, so keep this ordered.
+ */
+const FAMILY_WINDOWS: { pattern: RegExp; size: number }[] = [
+  // Haiku has never had a 1M window in any form.
+  { pattern: /haiku/i, size: DEFAULT_CONTEXT_WINDOW },
+  // Fable and Mythos default to their maximum.
+  { pattern: /(fable|mythos)/i, size: LARGE_CONTEXT_WINDOW },
+  // Opus 5 and later ship as "Opus (1M context)" with no 200K variant to pick.
+  // Earlier Opus needs the marker, so it deliberately falls through.
+  { pattern: /opus-([5-9]|\d\d)/i, size: LARGE_CONTEXT_WINDOW },
+  // The bare `opus` alias resolves to the current Opus, hence the same window.
+  { pattern: /^opus(\[|$)/i, size: LARGE_CONTEXT_WINDOW },
+  // Sonnet without a marker is the 200K variant.
+  { pattern: /sonnet/i, size: DEFAULT_CONTEXT_WINDOW },
+];
+
+/**
  * Work out how big the context window is when the bridge is not there to say.
  *
  * Transcripts record the API model name with the 1M marker stripped —
- * `claude-opus-5`, never `claude-opus-5[1m]` — so a 1M session is indistinguishable
- * from a 200K one on the transcript alone. The configured model is checked for the
- * marker, and a session that has already passed 200K tokens has answered the
- * question by itself. `claudeMonitor.contextWindowSize` settles it outright.
+ * `claude-opus-5`, never `claude-opus-5[1m]` — so the marker alone cannot answer the
+ * question. The model family can: Claude Code's allotment per family is known, and
+ * only Sonnet is ambiguous, which is precisely the case the marker covers. A session
+ * that has already passed 200K tokens has answered the question by itself, and
+ * `claudeMonitor.contextWindowSize` settles it outright.
  */
 export function resolveContextWindow(
   model: string | undefined,
@@ -196,12 +219,29 @@ export function resolveContextWindow(
     return { size: override, source: 'setting' };
   }
   if (isLargeContextModel(model) || isLargeContextModel(configuredModel)) {
-    return { size: LARGE_CONTEXT_WINDOW, source: 'model' };
+    return { size: LARGE_CONTEXT_WINDOW, source: 'marker' };
+  }
+
+  // The model that actually ran the turn beats the one configured, which may have
+  // been changed since.
+  const family = windowForFamily(model) ?? windowForFamily(configuredModel);
+  // A family verdict of 200K that the session has already outgrown is simply wrong.
+  const outgrown = family !== undefined && family <= observedTokens;
+  if (family !== undefined && !outgrown) {
+    return { size: family, source: 'family' };
   }
   if (observedTokens > DEFAULT_CONTEXT_WINDOW) {
     return { size: LARGE_CONTEXT_WINDOW, source: 'observed' };
   }
   return { size: DEFAULT_CONTEXT_WINDOW, source: 'default' };
+}
+
+/** The window Claude Code allots this model, or undefined for an unknown family. */
+export function windowForFamily(model: string | undefined): number | undefined {
+  if (model === undefined) {
+    return undefined;
+  }
+  return FAMILY_WINDOWS.find((entry) => entry.pattern.test(model))?.size;
 }
 
 export function isLargeContextModel(model: string | undefined): boolean {
