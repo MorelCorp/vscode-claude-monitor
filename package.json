@@ -2,7 +2,7 @@
   "name": "claude-usage-monitor",
   "displayName": "Claude Usage Monitor",
   "description": "Status bar meters for Claude Code subscription usage: context window, 5-hour session limit and 7-day weekly limit.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "morelcorp",
   "license": "MIT",
   "engines": {
@@ -44,6 +44,10 @@
       {
         "command": "claudeMonitor.refresh",
         "title": "Claude Monitor: Refresh Now"
+      },
+      {
+        "command": "claudeMonitor.showDiagnostics",
+        "title": "Claude Monitor: Show Diagnostics"
       },
       {
         "command": "claudeMonitor.openSettings",
@@ -199,7 +203,37 @@
         "claudeMonitor.transcriptFallback": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "When the bridge has not reported yet, estimate the context window by reading the session transcript in `~/.claude/projects`. Rate limits cannot be estimated this way."
+          "markdownDescription": "When the bridge has not reported yet, estimate the context window by reading the session transcript in `~/.claude/projects`. Rate limits are not in the transcript and cannot be estimated this way."
+        },
+        "claudeMonitor.contextWindowSize": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "markdownDescription": "Context window size to measure against, in tokens, when the bridge is not connected. `0` works it out: models marked `[1m]` get 1,000,000, a session that has already passed 200,000 tokens gets 1,000,000, everything else gets 200,000. Transcripts record the model name with the `[1m]` marker stripped, so set this to `1000000` if your sessions run a 1M window and the meter reads high."
+        },
+        "claudeMonitor.rateLimits.source": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "api",
+            "statusLine",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Use the status line payload if it ever carries limits, otherwise the usage endpoint.",
+            "Always use the usage endpoint.",
+            "Only use the status line payload, which no released Claude Code version fills in.",
+            "Do not show the 5-hour and 7-day meters."
+          ],
+          "default": "auto",
+          "markdownDescription": "Where the 5-hour and 7-day meters get their numbers. The usage endpoint is `https://api.anthropic.com/api/oauth/usage`, called with the login Claude Code already stored on this machine — the same request Claude Code's own `/usage` view makes. Set to `off` to make no network requests."
+        },
+        "claudeMonitor.rateLimits.refreshSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "maximum": 3600,
+          "description": "How often to re-read the 5-hour and 7-day limits from the usage endpoint."
         },
         "claudeMonitor.pollIntervalSeconds": {
           "type": "number",

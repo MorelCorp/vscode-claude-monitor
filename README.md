@@ -16,6 +16,10 @@ Claude   Se ●●○○○ ⏱ 20m   Wk ●●●●○ ⏱ 3d 2h   Tk ●●�
 `Tk` prints the live token count next to its bar (`151k 75%`). `claudeMonitor.contextDisplay`
 switches it to `151k/200k 75%`, tokens only, percent only, or bar only.
 
+`Se` and `Wk` are read from your account; `Tk` is read from the conversation. Neither
+needs the other, so the limits work before the bridge is connected and the context meter
+works on an API key.
+
 Each meter turns amber at its warning threshold and red at its critical threshold.
 
 ## Install
@@ -26,7 +30,7 @@ Not on the Marketplace yet, so it installs from a `.vsix`.
 [Releases](https://github.com/MorelCorp/vscode-claude-monitor/releases), then:
 
 ```sh
-code --install-extension claude-usage-monitor-0.1.0.vsix
+code --install-extension claude-usage-monitor-0.2.0.vsix
 ```
 
 Untagged builds are also available: open any run under
@@ -40,7 +44,7 @@ git clone https://github.com/MorelCorp/vscode-claude-monitor.git
 cd vscode-claude-monitor
 npm install
 npm run package        # writes claude-usage-monitor-<version>.vsix
-code --install-extension claude-usage-monitor-0.1.0.vsix
+code --install-extension claude-usage-monitor-0.2.0.vsix
 ```
 
 Then reload VS Code. On first start the extension offers to **connect to Claude Code**;
@@ -57,22 +61,47 @@ Extension Development Host.
 
 ## Where the numbers come from
 
-Claude Code pipes a JSON blob into whatever command is configured as its
-[`statusLine`](https://code.claude.com/docs/en/statusline). That blob already contains
-everything this extension shows:
+The two kinds of meter have two different sources, because Claude Code exposes them in
+two different places.
+
+### 5-hour and 7-day limits
+
+These come from `https://api.anthropic.com/api/oauth/usage`, read with the login Claude
+Code already stored on this machine. It is the same request Claude Code's own `/usage`
+view makes, and it returns the same numbers:
 
 ```json
 {
-  "context_window": { "total_input_tokens": 150711, "context_window_size": 200000, "used_percentage": 75.4 },
-  "rate_limits": {
-    "five_hour": { "used_percentage": 42.5, "resets_at": 1787845141 },
-    "seven_day": { "used_percentage": 93.1, "resets_at": 1788110881 }
-  }
+  "five_hour":  { "utilization": 58, "resets_at": "2026-08-27T14:00:00Z" },
+  "seven_day":  { "utilization": 14, "resets_at": "2026-08-31T09:00:00Z" }
 }
 ```
 
-These are the real percentages Claude Code itself reports — the same ones `/usage` shows —
-not an estimate derived from token counting against a guessed plan limit.
+The token is read from the macOS Keychain (`Claude Code-credentials`) or
+`~/.claude/.credentials.json`, exactly where the CLI keeps it. Nothing is written, no
+token is refreshed, and the only host contacted is Anthropic's own API — but it is a
+network request, so `claudeMonitor.rateLimits.source: "off"` stops it and the meters go
+blank instead.
+
+The status line payload is checked first in case a future Claude Code starts including
+`rate_limits`. No released version does, which is why these meters cannot be fed by the
+bridge alone.
+
+### Context window
+
+Claude Code pipes a JSON blob into whatever command is configured as its
+[`statusLine`](https://code.claude.com/docs/en/statusline), and that blob carries the
+exact window:
+
+```json
+{
+  "context_window": {
+    "context_window_size": 1000000,
+    "used_percentage": 13,
+    "current_usage": { "input_tokens": 12, "cache_read_input_tokens": 129400 }
+  }
+}
+```
 
 So the extension installs a **bridge**: a small `sh` script that snapshots that JSON to
 disk and then hands stdin to whatever status line command you already had, so your
@@ -86,25 +115,34 @@ Connecting writes two things:
 
 `~/.claude/settings.json` is backed up before it is touched, your previous `statusLine`
 command is saved to `~/.claude/claude-monitor/chain` and still runs on every repaint, and
-**Claude Monitor: Disconnect from Claude Code** puts everything back. Nothing is sent
-anywhere; the extension only reads local files.
+**Claude Monitor: Disconnect from Claude Code** puts everything back.
 
-`CLAUDE_CONFIG_DIR` is honoured if you have set it.
+Without the bridge — including in the VS Code Claude extension's own chat panel, which
+has no shell status line to run — the context meter reads the newest transcript in
+`~/.claude/projects` instead and counts what the next request will carry:
+`input + cache_read + cache_creation`, excluding output tokens, matching Claude Code's
+own reading.
+
+`CLAUDE_CONFIG_DIR` is honoured throughout.
 
 ### Caveats
 
-- `rate_limits` is only present for **Claude.ai subscription accounts**, and only after a
-  session's first API response. On API-key billing the `Se` and `Wk` meters stay empty and
-  the tooltip says so.
-- Claude Code sessions that were already running when you connected keep using the old
-  status line. Restart them to start reporting.
-- Until the bridge reports for the first time, the context meter falls back to reading
-  the newest transcript in `~/.claude/projects` and estimating against a 200k window.
-  Rate limits are not in the transcript and cannot be estimated. Turn this off with
-  `claudeMonitor.transcriptFallback`.
-- The 5-hour and 7-day limits are account-wide, so they come from whichever session
-  reported most recently. The context window is per-conversation, so it follows a session
-  running in *this* workspace (`claudeMonitor.contextSource` relaxes that to any session).
+- **The transcript does not record the window size.** It stores the API model name with
+  the 1M marker stripped — `claude-opus-5`, never `claude-opus-5[1m]` — so a 1M session
+  is indistinguishable from a 200K one. Without the bridge the extension checks your
+  configured model for the `[1m]` marker, treats any session already past 200K tokens as
+  1M, and otherwise assumes 200K. If your sessions run a 1M window and `Tk` reads about
+  five times too high, set `claudeMonitor.contextWindowSize` to `1000000`.
+- The 5-hour and 7-day meters need a **Claude.ai subscription**. On API-key billing there
+  are no such limits and the meters stay empty, with the tooltip saying so.
+- Claude Code sessions that were already running when you connected the bridge keep using
+  the old status line. Restart them to start reporting.
+- The limits are account-wide, so they are the same everywhere. The context window is
+  per-conversation, so it follows a session running in *this* workspace
+  (`claudeMonitor.contextSource` relaxes that to any session).
+- **Claude Monitor: Show Diagnostics** prints every source's state — bridge, snapshots,
+  window size and why, login location, last endpoint reply — when a meter is blank and
+  you want to know which link in the chain is missing.
 
 ## Settings
 
@@ -130,6 +168,9 @@ anywhere; the extension only reads local files.
 | `claudeMonitor.staleAfterMinutes` | `30` | Dim the meters after this much silence |
 | `claudeMonitor.hideWhenNoData` | `false` | Hide rather than dim |
 | `claudeMonitor.transcriptFallback` | `true` | Estimate context from the transcript |
+| `claudeMonitor.contextWindowSize` | `0` | Window size in tokens; `0` works it out |
+| `claudeMonitor.rateLimits.source` | `auto` | `auto` `api` `statusLine` `off` |
+| `claudeMonitor.rateLimits.refreshSeconds` | `60` | How often to re-read the limits |
 | `claudeMonitor.pollIntervalSeconds` | `5` | Re-read interval, on top of file watches |
 | `claudeMonitor.promptToConnect` | `true` | Offer to connect on first start |
 
@@ -142,6 +183,7 @@ be overridden in `workbench.colorCustomizations`.
 - **Claude Monitor: Show Usage Details** — the full breakdown (also on click)
 - **Claude Monitor: Connect to Claude Code** / **Disconnect from Claude Code**
 - **Claude Monitor: Refresh Now**
+- **Claude Monitor: Show Diagnostics** — why a meter is blank
 - **Claude Monitor: Open Settings**
 
 ## Development

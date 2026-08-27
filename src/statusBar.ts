@@ -63,7 +63,7 @@ export class StatusBar implements vscode.Disposable {
     }
   }
 
-  /** A single "connect me" item shown while the bridge is not installed. */
+  /** A single "connect me" item shown while there is nothing at all to report. */
   renderSetup(config: MonitorConfig): void {
     this.ensureItems(config, 0, 'setup');
     const item = this.items[0];
@@ -71,9 +71,9 @@ export class StatusBar implements vscode.Disposable {
     item.command = 'claudeMonitor.installBridge';
     const tooltip = new vscode.MarkdownString(
       '**Claude Usage Monitor**\n\n' +
-        'Not connected to Claude Code yet.\n\n' +
-        'Click to install the status line bridge that reports your context window and ' +
-        'subscription limits.',
+        'Nothing to report yet.\n\n' +
+        'Click to install the status line bridge, which reports the exact context window ' +
+        'of terminal Claude Code sessions.',
     );
     tooltip.supportThemeIcons = true;
     item.tooltip = tooltip;
@@ -203,21 +203,46 @@ export function buildTooltip(
   }
   if (model.rateLimitsUnavailable) {
     md.appendMarkdown(
-      '$(info) Claude Code is not reporting subscription limits. These are only sent for ' +
-        'Claude.ai subscription accounts, after the first response of a session.\n\n',
+      '$(info) This account reports no 5-hour or 7-day limits. Those are a Claude.ai ' +
+        'subscription feature.\n\n',
     );
+  }
+  const limitsNote = limitsProblem(model.limitsStatus);
+  if (limitsNote) {
+    md.appendMarkdown(`$(warning) ${limitsNote}\n\n`);
   }
   if (model.stale) {
     md.appendMarkdown('$(info) No Claude Code session has reported recently.\n\n');
   }
-  if (!bridgeInstalled) {
-    md.appendMarkdown('$(warning) The status line bridge is not installed.\n\n');
+  if (!bridgeInstalled && model.estimated) {
+    md.appendMarkdown(
+      '$(info) Context is estimated from the transcript. ' +
+        '[Connect the bridge](command:claudeMonitor.installBridge) for the exact window size.\n\n',
+    );
   }
 
   md.appendMarkdown(
-    '[Refresh](command:claudeMonitor.refresh) · [Settings](command:claudeMonitor.openSettings)',
+    '[Refresh](command:claudeMonitor.refresh) · ' +
+      '[Diagnostics](command:claudeMonitor.showDiagnostics) · ' +
+      '[Settings](command:claudeMonitor.openSettings)',
   );
   return md;
+}
+
+/** Only the states the user can do something about get a line in the tooltip. */
+function limitsProblem(status: UsageModel['limitsStatus']): string | undefined {
+  switch (status) {
+    case 'no-credentials':
+      return 'No Claude Code login found on this machine, so the 5-hour and 7-day meters are blank.';
+    case 'expired':
+      return 'The stored Claude Code login has expired. Run `claude` once to refresh it.';
+    case 'unauthorized':
+      return 'The stored Claude Code login was rejected by the usage endpoint.';
+    case 'unavailable':
+      return 'Could not reach the usage endpoint. See Diagnostics.';
+    default:
+      return undefined;
+  }
 }
 
 function escapeMarkdown(text: string): string {

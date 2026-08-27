@@ -23,9 +23,20 @@ export interface MonitorConfig {
   staleAfterMinutes: number;
   hideWhenNoData: boolean;
   transcriptFallback: boolean;
+  /** 0 means "work it out from the model and the session". */
+  contextWindowSize: number;
+  rateLimitsSource: RateLimitsSource;
+  rateLimitsRefreshSeconds: number;
   pollIntervalSeconds: number;
   promptToConnect: boolean;
 }
+
+/**
+ * Where the 5-hour and 7-day meters get their numbers. `auto` uses the status line
+ * payload when it carries limits and the usage endpoint otherwise, which today
+ * always means the endpoint.
+ */
+export type RateLimitsSource = 'auto' | 'api' | 'statusLine' | 'off';
 
 const VALID_SEGMENTS: MetricId[] = ['session', 'week', 'context'];
 
@@ -61,6 +72,9 @@ export function readConfig(): MonitorConfig {
     staleAfterMinutes: Math.max(1, c.get<number>('staleAfterMinutes', 30)),
     hideWhenNoData: c.get<boolean>('hideWhenNoData', false),
     transcriptFallback: c.get<boolean>('transcriptFallback', true),
+    contextWindowSize: Math.max(0, c.get<number>('contextWindowSize', 0)),
+    rateLimitsSource: c.get<RateLimitsSource>('rateLimits.source', 'auto'),
+    rateLimitsRefreshSeconds: clamp(c.get<number>('rateLimits.refreshSeconds', 60), 15, 3600),
     pollIntervalSeconds: clamp(c.get<number>('pollIntervalSeconds', 5), 1, 300),
     promptToConnect: c.get<boolean>('promptToConnect', true),
   };
