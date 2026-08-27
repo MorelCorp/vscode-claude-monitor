@@ -190,6 +190,8 @@ be overridden in `workbench.colorCustomizations`.
 
 ## Development
 
+Built and tested on Node 24, the version CI uses.
+
 ```sh
 npm install
 npm run compile
