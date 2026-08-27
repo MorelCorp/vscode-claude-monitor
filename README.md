@@ -20,7 +20,20 @@ Each meter turns amber at its warning threshold and red at its critical threshol
 
 ## Install
 
-Not on the Marketplace yet, so install the `.vsix` build:
+Not on the Marketplace yet, so it installs from a `.vsix`.
+
+**Download one:** grab the latest `.vsix` from
+[Releases](https://github.com/MorelCorp/vscode-claude-monitor/releases), then:
+
+```sh
+code --install-extension claude-usage-monitor-0.1.0.vsix
+```
+
+Untagged builds are also available: open any run under
+[Actions](https://github.com/MorelCorp/vscode-claude-monitor/actions) and download the
+`claude-usage-monitor-vsix` artifact (kept ~90 days).
+
+**Or build it:**
 
 ```sh
 git clone https://github.com/MorelCorp/vscode-claude-monitor.git
@@ -141,6 +154,16 @@ npm run package    # build a .vsix
 ```
 
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host.
+
+### Releasing
+
+CI builds and tests every push and attaches the `.vsix` to the run. Pushing a `v*` tag
+publishes that same `.vsix` as a release asset:
+
+```sh
+npm version patch      # or minor / major — updates package.json and tags
+git push --follow-tags
+```
 
 ## License
 

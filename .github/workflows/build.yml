@@ -1,0 +1,54 @@
+name: Build
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run package
+      # Downloadable from the run's summary page for ~90 days. Every branch and
+      # PR gets one, so a build can be tried out before it is ever tagged.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-usage-monitor-vsix
+          path: '*.vsix'
+          if-no-files-found: error
+
+  # Tags only: publish the same VSIX as a permanent release asset.
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-usage-monitor-vsix
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" ./*.vsix --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" ./*.vsix \
+              --title "$GITHUB_REF_NAME" --generate-notes
+          fi
