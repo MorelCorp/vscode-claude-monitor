@@ -203,13 +203,19 @@ Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host.
 
 ### Releasing
 
-CI builds and tests every push and attaches the `.vsix` to the run. Pushing a `v*` tag
-publishes that same `.vsix` as a release asset:
+CI builds and tests every push and attaches the `.vsix` to the run. There are two ways
+to turn one of those builds into a release asset.
+
+Push a tag:
 
 ```sh
 npm version patch      # or minor / major — updates package.json and tags
 git push --follow-tags
 ```
+
+Or start the **Build** workflow by hand from the Actions tab and fill in `release_tag`
+(e.g. `v0.2.0`). That creates the tag and the release together, anchored to the commit
+the run built, which is the path to use where pushing a tag is not allowed.
 
 ## License
 
