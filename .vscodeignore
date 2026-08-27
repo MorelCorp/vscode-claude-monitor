@@ -7,3 +7,5 @@ out/test/**
 **/*.ts
 tsconfig.json
 .gitignore
+.claude/**
+*.vsix

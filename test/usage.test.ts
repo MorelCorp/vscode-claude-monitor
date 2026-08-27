@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { buildUsageModel, BuildOptions } from '../src/usage';
+import { LimitsResult } from '../src/limitsApi';
 import { Snapshot, StatusLinePayload } from '../src/types';
 
 const NOW = Date.UTC(2026, 7, 27, 12, 0, 0);
@@ -18,6 +19,7 @@ function options(overrides: Partial<BuildOptions> = {}): BuildOptions {
     contextCriticalThreshold: 90,
     staleAfterMinutes: 30,
     transcriptFallback: false,
+    contextWindowSize: 0,
     now: NOW,
     ...overrides,
   };
@@ -104,11 +106,59 @@ test('contextSource "any" falls back to the newest session anywhere', () => {
   assert.equal(model.metrics.find((m) => m.id === 'context')!.percent, 75);
 });
 
-test('flags accounts that never report subscription limits', () => {
+const API_LIMITS: LimitsResult = {
+  status: 'ok',
+  fetchedAt: NOW - 5_000,
+  source: 'keychain',
+  limits: {
+    fiveHour: { usedPercent: 58, resetsAt: NOW + 2 * 3600 * 1000 },
+    sevenDay: { usedPercent: 14, resetsAt: NOW + 4 * 86400 * 1000 },
+  },
+};
+
+test('the usage endpoint fills the limit meters the status line never carries', () => {
   const noLimits = snapshot({ ...FULL, rate_limits: undefined });
-  const model = buildUsageModel([noLimits], options());
+  const model = buildUsageModel([noLimits], options({ limits: API_LIMITS }));
+
+  const session = model.metrics.find((m) => m.id === 'session')!;
+  assert.equal(session.percent, 58);
+  assert.equal(session.source, 'api');
+  assert.equal(Math.round(session.resetsInSeconds!), 2 * 3600);
+
+  const week = model.metrics.find((m) => m.id === 'week')!;
+  assert.equal(week.percent, 14);
+  assert.equal(model.rateLimitsUnavailable, false);
+});
+
+test('a status line that does carry limits still wins over the endpoint', () => {
+  const model = buildUsageModel([snapshot(FULL)], options({ limits: API_LIMITS }));
+  const session = model.metrics.find((m) => m.id === 'session')!;
+  assert.equal(session.percent, 42);
+  assert.equal(session.source, 'bridge');
+});
+
+test('flags accounts the endpoint reports no limits for', () => {
+  const noLimits = snapshot({ ...FULL, rate_limits: undefined });
+  const model = buildUsageModel(
+    [noLimits],
+    options({ limits: { status: 'ok', limits: {}, fetchedAt: NOW, source: 'file' } }),
+  );
   assert.equal(model.rateLimitsUnavailable, true);
   assert.equal(model.metrics.find((m) => m.id === 'session')!.percent, undefined);
+});
+
+test('a blank limit meter says why it is blank', () => {
+  const noLimits = snapshot({ ...FULL, rate_limits: undefined });
+  const model = buildUsageModel([noLimits], options({ limits: { status: 'no-credentials' } }));
+  const session = model.metrics.find((m) => m.id === 'session')!;
+  assert.equal(session.percent, undefined);
+  assert.match(session.detail.join(' '), /no Claude Code login/);
+});
+
+test('a fresh endpoint reading keeps the meters live with no bridge at all', () => {
+  const model = buildUsageModel([], options({ limits: API_LIMITS }));
+  assert.equal(model.stale, false);
+  assert.equal(model.metrics.find((m) => m.id === 'week')!.percent, 14);
 });
 
 test('goes stale once nothing has reported for the configured window', () => {
@@ -116,7 +166,7 @@ test('goes stale once nothing has reported for the configured window', () => {
   assert.equal(model.stale, true);
 });
 
-test('no snapshots yields empty meters rather than throwing', () => {
+test('no snapshots and no endpoint reading yields empty meters rather than throwing', () => {
   const model = buildUsageModel([], options());
   assert.equal(model.metrics.length, 3);
   assert.ok(model.metrics.every((m) => m.percent === undefined));
@@ -133,7 +183,7 @@ test('a context window reported as null is treated as unknown', () => {
   assert.equal(model.metrics.find((m) => m.id === 'context')!.percent, undefined);
 });
 
-test('the transcript fallback carries a token count too', (t) => {
+test('the transcript fallback carries a token count and the right window', (t) => {
   const original = process.env.CLAUDE_CONFIG_DIR;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-monitor-'));
   t.after(() => {
@@ -160,7 +210,9 @@ test('the transcript fallback carries a token count too', (t) => {
             input_tokens: 12,
             cache_read_input_tokens: 99_988,
             cache_creation_input_tokens: 0,
-            output_tokens: 0,
+            // Excluded from the context reading: output only occupies the window
+            // once it comes back as input on the next turn.
+            output_tokens: 4_000,
           },
         },
       }),
@@ -176,6 +228,8 @@ test('the transcript fallback carries a token count too', (t) => {
 
   assert.equal(model.estimated, true);
   assert.equal(context.usedTokens, 100_000);
-  assert.equal(context.totalTokens, 200_000);
-  assert.equal(context.percent, 50);
+  // Opus ships only with its 1M window, so the transcript's `claude-opus-5` is
+  // enough to size it even though the `[1m]` marker was stripped.
+  assert.equal(context.totalTokens, 1_000_000);
+  assert.equal(context.percent, 10);
 });

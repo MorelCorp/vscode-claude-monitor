@@ -33,7 +33,11 @@ export interface StatusLinePayload {
     total_lines_added?: number;
     total_lines_removed?: number;
   };
-  /** Subscription limits. Only sent for Claude.ai subscribers, after the first API response. */
+  /**
+   * Subscription limits. No shipped version of Claude Code has ever put these in the
+   * status line payload — the usage endpoint is the real source — but they are read
+   * here in case a future version starts sending them.
+   */
   rate_limits?: {
     five_hour?: RateLimitWindow;
     seven_day?: RateLimitWindow;
@@ -59,6 +63,9 @@ export type MetricId = 'session' | 'week' | 'context';
 
 export type Level = 'normal' | 'warning' | 'critical';
 
+/** Where a meter's number came from, so the tooltip can say. */
+export type MetricSource = 'bridge' | 'api' | 'transcript';
+
 /** One rendered meter, ready for the status bar. */
 export interface Metric {
   id: MetricId;
@@ -74,6 +81,8 @@ export interface Metric {
   usedTokens?: number;
   /** Size of the context window the tokens are measured against. Context metric only. */
   totalTokens?: number;
+  /** Undefined when the metric has no number to attribute. */
+  source?: MetricSource;
   level: Level;
   /** Human-readable detail lines for the tooltip. */
   detail: string[];
@@ -91,6 +100,8 @@ export interface UsageModel {
   sessionLabel?: string;
   cwd?: string;
   costUsd?: number;
-  /** Set when the account is not a subscription (no rate limits ever reported). */
+  /** Outcome of the last usage-endpoint lookup, or undefined when it is turned off. */
+  limitsStatus?: 'pending' | 'ok' | 'no-credentials' | 'expired' | 'unauthorized' | 'unavailable';
+  /** Set when the account reports no subscription limits at all. */
   rateLimitsUnavailable: boolean;
 }
