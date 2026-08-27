@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Publish a release under this tag, e.g. v0.2.0. Leave blank to just build.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -30,10 +35,14 @@ jobs:
           path: '*.vsix'
           if-no-files-found: error
 
-  # Tags only: publish the same VSIX as a permanent release asset.
+  # Publish that same VSIX as a permanent release asset. Either push a v* tag,
+  # or start this workflow by hand and name the tag — the manual path creates
+  # the tag itself, for anyone who cannot push one.
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -45,10 +54,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          # A tag push already names the tag; a manual run supplies it.
+          TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" ./*.vsix --clobber
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" ./*.vsix --clobber
           else
-            gh release create "$GITHUB_REF_NAME" ./*.vsix \
-              --title "$GITHUB_REF_NAME" --generate-notes
+            # Anchor the tag to the commit that was actually built and tested.
+            gh release create "$TAG" ./*.vsix \
+              --target "$GITHUB_SHA" --title "$TAG" --generate-notes
           fi
