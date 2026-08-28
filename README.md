@@ -64,9 +64,10 @@ For Cursor, Windsurf, or VS Code Insiders substitute the matching CLI
 > while the read-only `code --list-extensions` does not
 > ([microsoft/vscode#301941](https://github.com/microsoft/vscode/issues/301941),
 > [microsoft/vscode#319867](https://github.com/microsoft/vscode/issues/319867)).
-> `code --trace-deprecation --install-extension ...` prints the stack, which lands in
-> VS Code's own code. The install still succeeded, so it is safe to ignore. To silence
-> it:
+> Note that `code --trace-deprecation` does not get you the stack: the `code` CLI hands
+> unknown flags to Electron rather than to Node, and says so. Pass it to the Node
+> process instead, with `NODE_OPTIONS=--trace-deprecation`. The install still succeeded,
+> so it is safe to ignore. To silence it:
 >
 > ```sh
 > NODE_OPTIONS=--no-deprecation code --install-extension claude-usage-monitor-*.vsix
