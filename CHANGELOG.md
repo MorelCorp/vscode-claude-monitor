@@ -2,9 +2,28 @@
 
 ## Unreleased
 
+- **The install-time `url.parse()` deprecation warning is traced to its source.** It is
+  VS Code's own: after a VSIX installs, its CLI queries the Marketplace for the
+  extension's metadata over an HTTP client that still calls `url.parse()`. The README now
+  carries the captured stack, the control (a VSIX containing nothing but a `package.json`
+  prints the same warning), the fact that it is unfixed in 1.136.0-insider, and two ways
+  to not see it. Nothing in this repository is on that stack, and nothing here can
+  suppress it.
+- **Releasing from the Actions tab no longer leaves `package.json` behind.** The manual
+  path stamped the release version onto the build with `npm version --no-git-tag-version`,
+  which by design does not commit, so every release published from that button left the
+  committed version where it was — `0.2.0` for six releases, then `0.3.3` while 0.4.0
+  shipped. **Run workflow** now takes `patch`/`minor`/`major` instead of a tag to type:
+  CI bumps `package.json`, commits it, tags that commit, and pushes both before packaging.
+- A release whose tag disagrees with `package.json` now fails the build instead of
+  publishing a VSIX named after something that was never committed.
+- `package.json` bumped to `0.4.0`, catching it up with the released tag.
+
+## 0.4.0
+
 - **`package.json` is back in sync with what has shipped.** It read `0.2.0` across six
   releases; release builds stamp the tag over it, so published VSIXs were named
-  correctly and the drift went unnoticed. Bumped to `0.3.3`, and the release docs now
+  correctly and the drift went unnoticed. Brought back in line, and the release docs now
   state the tag rule (`v` + the exact `package.json` version) and why the manual
   workflow path is what let the two drift apart.
 - Release tags without the conventional `v` prefix now trigger the release job instead
