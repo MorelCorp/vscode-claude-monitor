@@ -30,7 +30,7 @@ Not on the Marketplace yet, so it installs from a `.vsix`.
 [Releases](https://github.com/MorelCorp/vscode-claude-monitor/releases), then:
 
 ```sh
-code --install-extension claude-usage-monitor-0.2.0.vsix
+code --install-extension claude-usage-monitor-*.vsix
 ```
 
 Untagged builds are also available: open any run under
@@ -44,7 +44,7 @@ git clone https://github.com/MorelCorp/vscode-claude-monitor.git
 cd vscode-claude-monitor
 npm install
 npm run package        # writes claude-usage-monitor-<version>.vsix
-code --install-extension claude-usage-monitor-0.2.0.vsix
+code --install-extension claude-usage-monitor-*.vsix
 ```
 
 Then reload VS Code. On first start the extension offers to **connect to Claude Code**;
@@ -57,9 +57,21 @@ For Cursor, Windsurf, or VS Code Insiders substitute the matching CLI
 (`cursor --install-extension ...`), or use the same VSIX menu.
 
 > `code --install-extension` may print a `(node:...) [DEP0169] DeprecationWarning:
-> url.parse() ...` line after installing. That comes from the `code` CLI's own
-> Node runtime, not from this extension — this repo doesn't call `url.parse()`
-> anywhere. It's safe to ignore.
+> url.parse() ...` line after installing. That is VS Code's own bundled code running on
+> Node 24+, not this extension — installing a VSIX never executes extension code, and
+> this repo doesn't call `url.parse()` anywhere. It comes from VS Code's extension
+> management path, so `code --update-extensions` prints it with no VSIX involved at all,
+> while the read-only `code --list-extensions` does not
+> ([microsoft/vscode#301941](https://github.com/microsoft/vscode/issues/301941),
+> [microsoft/vscode#319867](https://github.com/microsoft/vscode/issues/319867)).
+> Note that `code --trace-deprecation` does not get you the stack: the `code` CLI hands
+> unknown flags to Electron rather than to Node, and says so. Pass it to the Node
+> process instead, with `NODE_OPTIONS=--trace-deprecation`. The install still succeeded,
+> so it is safe to ignore. To silence it:
+>
+> ```sh
+> NODE_OPTIONS=--no-deprecation code --install-extension claude-usage-monitor-*.vsix
+> ```
 
 To try it without installing, open the repo in VS Code and press <kbd>F5</kbd> for an
 Extension Development Host.
@@ -211,16 +223,24 @@ Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host.
 CI builds and tests every push and attaches the `.vsix` to the run. There are two ways
 to turn one of those builds into a release asset.
 
-Push a tag:
+**How to name a version.** A release tag is `v` followed by the exact `package.json`
+version — `v0.3.3`, not `0.3.3` and not `V0.3.3`. Don't type the version in two places:
+let npm write both, and push the tag it made.
 
 ```sh
-npm version patch      # or minor / major — updates package.json and tags
+npm version patch      # or minor / major — bumps package.json and creates the v… tag
 git push --follow-tags
 ```
 
+Prefer this path, because it commits the bump. The tag and the shipped VSIX then agree
+with what is on `main`.
+
 Or start the **Build** workflow by hand from the Actions tab and fill in `release_tag`
-(e.g. `v0.2.0`). That creates the tag and the release together, anchored to the commit
-the run built, which is the path to use where pushing a tag is not allowed.
+(e.g. `v0.3.3`), anchored to the commit the run built — the path to use where pushing a
+tag is not allowed. It stamps that version onto the build **without committing it**, so
+`package.json` stays behind unless you bump it separately. Every release from 0.2.1 to
+0.3.2 went out this way, which is how `package.json` sat at `0.2.0` for six releases. If
+you use this path, land an `npm version` bump as well.
 
 ## License
 
