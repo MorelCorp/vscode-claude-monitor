@@ -2,7 +2,7 @@
   "name": "claude-usage-monitor",
   "displayName": "Claude Usage Monitor",
   "description": "Status bar meters for Claude Code subscription usage: context window, 5-hour session limit and 7-day weekly limit.",
-  "version": "0.2.0",
+  "version": "0.3.3",
   "publisher": "morelcorp",
   "license": "MIT",
   "engines": {

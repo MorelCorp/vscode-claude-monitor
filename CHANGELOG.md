@@ -2,12 +2,31 @@
 
 ## Unreleased
 
+- Documentation only: the `url.parse()` deprecation warning `code --install-extension`
+  prints is VS Code's own, with upstream issues cited and a way to silence it, and the
+  install snippets no longer name a version that goes stale.
+
+## 0.3.2
+
+- Release builds take their version from the release tag instead of `package.json`, so
+  a published VSIX is no longer named after whatever version happened to be committed.
+  No change to the extension itself.
+
+## 0.3.0 / 0.3.1
+
+Identical builds — 0.3.1 re-ran the release on the same commit.
+
 - **The rate-limit meters back off instead of hammering a throttled endpoint.** A 429
   from `api/oauth/usage` used to get retried on the same fixed cadence forever, which
   kept the endpoint saturated instead of letting it recover — worse the more windows or
   workspaces you had open against the same account. A run of failures now backs off
   exponentially (capped at 30 minutes) and honours the server's `Retry-After` when it
   sends one.
+
+## 0.2.1 / 0.2.2
+
+Identical builds — 0.2.2 re-ran the release on the same commit. Documentation only: the
+manual release path, and a first note about the `url.parse()` deprecation warning.
 
 ## 0.2.0
 

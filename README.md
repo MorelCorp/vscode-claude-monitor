@@ -30,7 +30,7 @@ Not on the Marketplace yet, so it installs from a `.vsix`.
 [Releases](https://github.com/MorelCorp/vscode-claude-monitor/releases), then:
 
 ```sh
-code --install-extension claude-usage-monitor-0.2.0.vsix
+code --install-extension claude-usage-monitor-*.vsix
 ```
 
 Untagged builds are also available: open any run under
@@ -44,7 +44,7 @@ git clone https://github.com/MorelCorp/vscode-claude-monitor.git
 cd vscode-claude-monitor
 npm install
 npm run package        # writes claude-usage-monitor-<version>.vsix
-code --install-extension claude-usage-monitor-0.2.0.vsix
+code --install-extension claude-usage-monitor-*.vsix
 ```
 
 Then reload VS Code. On first start the extension offers to **connect to Claude Code**;
@@ -65,7 +65,7 @@ For Cursor, Windsurf, or VS Code Insiders substitute the matching CLI
 > The install still succeeded, so it is safe to ignore. To silence it:
 >
 > ```sh
-> NODE_OPTIONS=--no-deprecation code --install-extension claude-usage-monitor-0.2.0.vsix
+> NODE_OPTIONS=--no-deprecation code --install-extension claude-usage-monitor-*.vsix
 > ```
 
 To try it without installing, open the repo in VS Code and press <kbd>F5</kbd> for an
