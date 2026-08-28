@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **The rate-limit meters back off instead of hammering a throttled endpoint.** A 429
+  from `api/oauth/usage` used to get retried on the same fixed cadence forever, which
+  kept the endpoint saturated instead of letting it recover — worse the more windows or
+  workspaces you had open against the same account. A run of failures now backs off
+  exponentially (capped at 30 minutes) and honours the server's `Retry-After` when it
+  sends one.
+
 ## 0.2.0
 
 - **The 5-hour and 7-day meters now work.** They were reading `rate_limits` from Claude
