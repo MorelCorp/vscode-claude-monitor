@@ -2,7 +2,7 @@
   "name": "claude-usage-monitor",
   "displayName": "Claude Usage Monitor",
   "description": "Status bar meters for Claude Code subscription usage: context window, 5-hour session limit and 7-day weekly limit.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "morelcorp",
   "license": "MIT",
   "engines": {
@@ -64,10 +64,18 @@
         },
         "claudeMonitor.segments": {
           "type": "array",
-          "default": ["session", "week", "context"],
+          "default": [
+            "session",
+            "week",
+            "context"
+          ],
           "items": {
             "type": "string",
-            "enum": ["session", "week", "context"],
+            "enum": [
+              "session",
+              "week",
+              "context"
+            ],
             "enumDescriptions": [
               "5-hour rolling session limit",
               "7-day weekly limit",
@@ -80,7 +88,12 @@
         "claudeMonitor.style": {
           "type": "string",
           "default": "dots",
-          "enum": ["dots", "blocks", "ascii", "percent"],
+          "enum": [
+            "dots",
+            "blocks",
+            "ascii",
+            "percent"
+          ],
           "enumDescriptions": [
             "Filled/empty circles, e.g. ●●●○○",
             "Block characters, e.g. ███░░",
@@ -109,7 +122,13 @@
         "claudeMonitor.contextDisplay": {
           "type": "string",
           "default": "tokens+percent",
-          "enum": ["tokens+percent", "tokens-of-limit", "tokens", "percent", "none"],
+          "enum": [
+            "tokens+percent",
+            "tokens-of-limit",
+            "tokens",
+            "percent",
+            "none"
+          ],
           "enumDescriptions": [
             "Tokens used and percentage, e.g. 151k 75%",
             "Tokens used out of the context window, and percentage, e.g. 151k/200k 75%",
@@ -160,7 +179,11 @@
         "claudeMonitor.notifications": {
           "type": "string",
           "default": "critical",
-          "enum": ["off", "critical", "warning"],
+          "enum": [
+            "off",
+            "critical",
+            "warning"
+          ],
           "enumDescriptions": [
             "Never pop a notification",
             "Notify when a limit first crosses the critical threshold",
@@ -171,7 +194,10 @@
         "claudeMonitor.alignment": {
           "type": "string",
           "default": "right",
-          "enum": ["left", "right"],
+          "enum": [
+            "left",
+            "right"
+          ],
           "description": "Which side of the status bar to dock the meters on."
         },
         "claudeMonitor.priority": {
@@ -182,7 +208,10 @@
         "claudeMonitor.contextSource": {
           "type": "string",
           "default": "workspace",
-          "enum": ["workspace", "any"],
+          "enum": [
+            "workspace",
+            "any"
+          ],
           "enumDescriptions": [
             "Only show the context window of Claude Code sessions running in this workspace",
             "Show the context window of the most recently active session anywhere"
