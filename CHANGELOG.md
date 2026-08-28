@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`package.json` is back in sync with what has shipped.** It read `0.2.0` across six
+  releases; release builds stamp the tag over it, so published VSIXs were named
+  correctly and the drift went unnoticed. Bumped to `0.3.3`, and the release docs now
+  state the tag rule (`v` + the exact `package.json` version) and why the manual
+  workflow path is what let the two drift apart.
+- Release tags without the conventional `v` prefix now trigger the release job instead
+  of silently building nothing.
 - Documentation only: the `url.parse()` deprecation warning `code --install-extension`
   prints is VS Code's own, with upstream issues cited and a way to silence it, and the
   install snippets no longer name a version that goes stale.

@@ -57,12 +57,16 @@ For Cursor, Windsurf, or VS Code Insiders substitute the matching CLI
 (`cursor --install-extension ...`), or use the same VSIX menu.
 
 > `code --install-extension` may print a `(node:...) [DEP0169] DeprecationWarning:
-> url.parse() ...` line after installing. That is VS Code's own bundled code
-> running on Node 24+, not this extension — this repo doesn't call `url.parse()`
-> anywhere, and VS Code prints the same warning for any extension, or none at all
+> url.parse() ...` line after installing. That is VS Code's own bundled code running on
+> Node 24+, not this extension — installing a VSIX never executes extension code, and
+> this repo doesn't call `url.parse()` anywhere. It comes from VS Code's extension
+> management path, so `code --update-extensions` prints it with no VSIX involved at all,
+> while the read-only `code --list-extensions` does not
 > ([microsoft/vscode#301941](https://github.com/microsoft/vscode/issues/301941),
 > [microsoft/vscode#319867](https://github.com/microsoft/vscode/issues/319867)).
-> The install still succeeded, so it is safe to ignore. To silence it:
+> `code --trace-deprecation --install-extension ...` prints the stack, which lands in
+> VS Code's own code. The install still succeeded, so it is safe to ignore. To silence
+> it:
 >
 > ```sh
 > NODE_OPTIONS=--no-deprecation code --install-extension claude-usage-monitor-*.vsix
@@ -218,16 +222,24 @@ Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host.
 CI builds and tests every push and attaches the `.vsix` to the run. There are two ways
 to turn one of those builds into a release asset.
 
-Push a tag:
+**How to name a version.** A release tag is `v` followed by the exact `package.json`
+version — `v0.3.3`, not `0.3.3` and not `V0.3.3`. Don't type the version in two places:
+let npm write both, and push the tag it made.
 
 ```sh
-npm version patch      # or minor / major — updates package.json and tags
+npm version patch      # or minor / major — bumps package.json and creates the v… tag
 git push --follow-tags
 ```
 
+Prefer this path, because it commits the bump. The tag and the shipped VSIX then agree
+with what is on `main`.
+
 Or start the **Build** workflow by hand from the Actions tab and fill in `release_tag`
-(e.g. `v0.2.0`). That creates the tag and the release together, anchored to the commit
-the run built, which is the path to use where pushing a tag is not allowed.
+(e.g. `v0.3.3`), anchored to the commit the run built — the path to use where pushing a
+tag is not allowed. It stamps that version onto the build **without committing it**, so
+`package.json` stays behind unless you bump it separately. Every release from 0.2.1 to
+0.3.2 went out this way, which is how `package.json` sat at `0.2.0` for six releases. If
+you use this path, land an `npm version` bump as well.
 
 ## License
 
