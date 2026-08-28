@@ -57,9 +57,16 @@ For Cursor, Windsurf, or VS Code Insiders substitute the matching CLI
 (`cursor --install-extension ...`), or use the same VSIX menu.
 
 > `code --install-extension` may print a `(node:...) [DEP0169] DeprecationWarning:
-> url.parse() ...` line after installing. That comes from the `code` CLI's own
-> Node runtime, not from this extension — this repo doesn't call `url.parse()`
-> anywhere. It's safe to ignore.
+> url.parse() ...` line after installing. That is VS Code's own bundled code
+> running on Node 24+, not this extension — this repo doesn't call `url.parse()`
+> anywhere, and VS Code prints the same warning for any extension, or none at all
+> ([microsoft/vscode#301941](https://github.com/microsoft/vscode/issues/301941),
+> [microsoft/vscode#319867](https://github.com/microsoft/vscode/issues/319867)).
+> The install still succeeded, so it is safe to ignore. To silence it:
+>
+> ```sh
+> NODE_OPTIONS=--no-deprecation code --install-extension claude-usage-monitor-0.2.0.vsix
+> ```
 
 To try it without installing, open the repo in VS Code and press <kbd>F5</kbd> for an
 Extension Development Host.
