@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { hasWindows, parseCredential, parseUsage } from '../src/limitsApi';
+import { MAX_BACKOFF_MS, hasWindows, nextPollDelayMs, parseCredential, parseUsage } from '../src/limitsApi';
 import {
   DEFAULT_CONTEXT_WINDOW,
   LARGE_CONTEXT_WINDOW,
@@ -117,6 +117,25 @@ test('an unrecognised model falls back to 200K and says so', () => {
   const resolved = resolveContextWindow('some-future-model', 0, 1_000, undefined);
   assert.equal(resolved.size, DEFAULT_CONTEXT_WINDOW);
   assert.equal(resolved.source, 'default');
+});
+
+test('a healthy poll uses the plain configured interval', () => {
+  assert.equal(nextPollDelayMs(60_000, 0), 60_000);
+});
+
+test('a run of unavailable results backs off exponentially, capped', () => {
+  assert.equal(nextPollDelayMs(60_000, 1), 120_000);
+  assert.equal(nextPollDelayMs(60_000, 2), 240_000);
+  assert.equal(nextPollDelayMs(60_000, 3), 480_000);
+  // Keeps doubling well past what any sane refresh interval would need, so it must
+  // saturate rather than overflow or grow unbounded.
+  assert.equal(nextPollDelayMs(60_000, 20), MAX_BACKOFF_MS);
+});
+
+test('a Retry-After longer than the doubled wait wins', () => {
+  assert.equal(nextPollDelayMs(60_000, 1, 10 * 60_000), 10 * 60_000);
+  // But a short Retry-After does not cut the backoff short.
+  assert.equal(nextPollDelayMs(60_000, 3, 1_000), 480_000);
 });
 
 test('the setting overrides every other signal', () => {

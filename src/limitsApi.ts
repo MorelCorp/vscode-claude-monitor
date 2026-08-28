@@ -51,7 +51,7 @@ export type LimitsResult =
   | { status: 'no-credentials' }
   | { status: 'expired' }
   | { status: 'unauthorized' }
-  | { status: 'unavailable'; message: string };
+  | { status: 'unavailable'; message: string; retryAfterMs?: number };
 
 /** True when the result carries limits we could actually plot. */
 export function hasWindows(limits: Limits): boolean {
@@ -209,6 +209,13 @@ export async function fetchLimits(now = Date.now()): Promise<LimitsResult> {
     if (response.status === 401 || response.status === 403) {
       return { status: 'unauthorized' };
     }
+    if (response.status === 429) {
+      return {
+        status: 'unavailable',
+        message: 'usage endpoint returned HTTP 429',
+        retryAfterMs: parseRetryAfter(response.headers['retry-after']),
+      };
+    }
     if (response.status !== 200) {
       return { status: 'unavailable', message: `usage endpoint returned HTTP ${response.status}` };
     }
@@ -226,7 +233,24 @@ export async function fetchLimits(now = Date.now()): Promise<LimitsResult> {
   }
 }
 
-function get(url: string, token: string): Promise<{ status: number; body: string }> {
+/** `Retry-After` is either a delay in seconds or an HTTP date; either way, in ms. */
+function parseRetryAfter(value: string | string[] | undefined): number | undefined {
+  const header = Array.isArray(value) ? value[0] : value;
+  if (!header) {
+    return undefined;
+  }
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) {
+    return Math.max(0, seconds * 1000);
+  }
+  const at = Date.parse(header);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
+}
+
+function get(
+  url: string,
+  token: string,
+): Promise<{ status: number; body: string; headers: Record<string, string | string[] | undefined> }> {
   return new Promise((resolve, reject) => {
     const request = https.request(
       url,
@@ -247,6 +271,7 @@ function get(url: string, token: string): Promise<{ status: number; body: string
           resolve({
             status: response.statusCode ?? 0,
             body: Buffer.concat(chunks).toString('utf8'),
+            headers: response.headers,
           }),
         );
       },
@@ -257,17 +282,46 @@ function get(url: string, token: string): Promise<{ status: number; body: string
   });
 }
 
+/** Cap how far a run of failures can push the next attempt out. */
+export const MAX_BACKOFF_MS = 30 * 60_000;
+
+/**
+ * How long to wait before the next poll, given how many `unavailable` results have
+ * come back in a row. Zero failures means the plain configured interval; each one
+ * after that doubles the wait, up to {@link MAX_BACKOFF_MS} — and a `Retry-After`
+ * from the server is honoured even if it is longer than the doubled wait.
+ */
+export function nextPollDelayMs(
+  intervalMs: number,
+  consecutiveFailures: number,
+  retryAfterMs?: number,
+): number {
+  if (consecutiveFailures <= 0) {
+    return intervalMs;
+  }
+  const backoff = Math.min(intervalMs * 2 ** consecutiveFailures, MAX_BACKOFF_MS);
+  return Math.max(backoff, retryAfterMs ?? 0);
+}
+
 /**
  * Keeps the newest reading on hand and refreshes it in the background.
  *
  * The endpoint is polled far more slowly than the status bar repaints; limits move
  * over minutes, and the token may live behind a Keychain read.
+ *
+ * A run of `unavailable` results (rate limiting in particular: HTTP 429) backs off
+ * exponentially instead of retrying on the fixed schedule — hitting an already
+ * throttled endpoint every `intervalMs` regardless of the last response never lets
+ * it recover, and only compounds across the several polls one VS Code window per
+ * open workspace runs against the same account.
  */
 export class LimitsPoller {
   private result: LimitsResult | undefined;
   private timer: NodeJS.Timeout | undefined;
   private inFlight = false;
   private intervalMs = 60_000;
+  private consecutiveFailures = 0;
+  private generation = 0;
 
   constructor(private readonly onUpdate: () => void) {}
 
@@ -278,13 +332,15 @@ export class LimitsPoller {
   start(intervalMs: number): void {
     this.stop();
     this.intervalMs = intervalMs;
-    void this.refresh();
-    this.timer = setInterval(() => void this.refresh(), this.intervalMs);
+    this.consecutiveFailures = 0;
+    const generation = this.generation;
+    void this.tick(generation);
   }
 
   stop(): void {
+    this.generation++;
     if (this.timer) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = undefined;
     }
   }
@@ -294,6 +350,16 @@ export class LimitsPoller {
     this.result = undefined;
   }
 
+  private async tick(generation: number): Promise<void> {
+    await this.refresh();
+    if (generation !== this.generation) {
+      return;
+    }
+    const retryAfterMs = this.result?.status === 'unavailable' ? this.result.retryAfterMs : undefined;
+    const delay = nextPollDelayMs(this.intervalMs, this.consecutiveFailures, retryAfterMs);
+    this.timer = setTimeout(() => void this.tick(generation), delay);
+  }
+
   async refresh(): Promise<LimitsResult | undefined> {
     if (this.inFlight) {
       return this.result;
@@ -301,6 +367,7 @@ export class LimitsPoller {
     this.inFlight = true;
     try {
       const next = await fetchLimits();
+      this.consecutiveFailures = next.status === 'unavailable' ? this.consecutiveFailures + 1 : 0;
       const changed = JSON.stringify(next) !== JSON.stringify(this.result);
       this.result = next;
       if (changed) {
