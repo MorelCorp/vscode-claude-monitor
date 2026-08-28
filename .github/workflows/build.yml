@@ -9,10 +9,11 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: 'Publish a release under this tag, e.g. v0.2.0. Leave blank to just build.'
-        required: false
-        default: ''
+      release:
+        description: 'Publish a release by bumping package.json this much. "none" just builds.'
+        type: choice
+        options: [none, patch, minor, major]
+        default: none
 
 permissions:
   contents: read
@@ -20,6 +21,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      # A release run pushes the version bump it makes back to the branch it ran from.
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -28,16 +34,52 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      # Only a release build (tag push, or a manual run naming release_tag) gets its
-      # version stamped from the tag; a plain branch/PR build packages whatever
-      # version is already committed in package.json.
-      - name: Set version from the release tag
+
+      # Where the release version comes from, and why it cannot drift:
+      #
+      #   manual run  - npm version bumps package.json, COMMITS it, and creates the
+      #                 matching tag; both are pushed before anything is packaged.
+      #   tag push    - the tag was made by `npm version` locally, so the commit it
+      #                 points at already carries the right version.
+      #   otherwise   - no tag, no release, and the VSIX is named after whatever is
+      #                 committed.
+      #
+      # The old manual path stamped the version onto the build with
+      # --no-git-tag-version and never committed it, which is why package.json sat
+      # behind every release published from this button.
+      - name: Bump, commit and tag the release
+        id: tag
         env:
-          TAG: >-
-            ${{ (github.event_name == 'workflow_dispatch' && inputs.release_tag) ||
-                (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
-        if: env.TAG != ''
-        run: npm version --no-git-tag-version --allow-same-version "${TAG#v}"
+          BUMP: ${{ (github.event_name == 'workflow_dispatch' && inputs.release) || 'none' }}
+        run: |
+          set -euo pipefail
+          if [ "$BUMP" != none ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            TAG=$(npm version "$BUMP" -m 'release %s' | tail -1)
+            git push origin "HEAD:$GITHUB_REF_NAME" --follow-tags
+          elif [ "$GITHUB_REF_TYPE" = tag ]; then
+            TAG=$GITHUB_REF_NAME
+          else
+            TAG=''
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      # A tag pushed by hand can still disagree with package.json. Fail here rather
+      # than publish a VSIX whose name does not match the source it was built from.
+      - name: Check the tag matches package.json
+        if: steps.tag.outputs.tag != ''
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          HAVE=$(node -p 'require("./package.json").version')
+          if [ "${TAG#v}" != "$HAVE" ]; then
+            echo "::error::Tag $TAG does not match package.json $HAVE." \
+                 "Run 'npm version' and tag the commit it makes."
+            exit 1
+          fi
+
       - run: npm run package
       # Downloadable from the run's summary page for ~90 days. Every branch and
       # PR gets one, so a build can be tried out before it is ever tagged.
@@ -47,14 +89,11 @@ jobs:
           path: '*.vsix'
           if-no-files-found: error
 
-  # Publish that same VSIX as a permanent release asset. Either push a v* tag,
-  # or start this workflow by hand and name the tag — the manual path creates
-  # the tag itself, for anyone who cannot push one.
+  # Publish that same VSIX as a permanent release asset, against the tag the build
+  # job settled on. The tag always exists in the repository by this point.
   release:
     needs: build
-    if: >-
-      startsWith(github.ref, 'refs/tags/') ||
-      (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+    if: needs.build.outputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -66,13 +105,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          # A tag push already names the tag; a manual run supplies it.
-          TAG: ${{ inputs.release_tag || github.ref_name }}
+          TAG: ${{ needs.build.outputs.tag }}
         run: |
+          set -euo pipefail
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" ./*.vsix --clobber
           else
-            # Anchor the tag to the commit that was actually built and tested.
-            gh release create "$TAG" ./*.vsix \
-              --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+            gh release create "$TAG" ./*.vsix --title "$TAG" --generate-notes
           fi

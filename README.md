@@ -56,22 +56,35 @@ If you prefer clicking: **Extensions** view → `...` menu → **Install from VS
 For Cursor, Windsurf, or VS Code Insiders substitute the matching CLI
 (`cursor --install-extension ...`), or use the same VSIX menu.
 
-> `code --install-extension` may print a `(node:...) [DEP0169] DeprecationWarning:
-> url.parse() ...` line after installing. That is VS Code's own bundled code running on
-> Node 24+, not this extension — installing a VSIX never executes extension code, and
-> this repo doesn't call `url.parse()` anywhere. It comes from VS Code's extension
-> management path, so `code --update-extensions` prints it with no VSIX involved at all,
-> while the read-only `code --list-extensions` does not
+> **The `[DEP0169] url.parse()` warning printed on install is VS Code's own, not this
+> extension's.** Traced on VS Code 1.135.0 with `NODE_OPTIONS=--trace-deprecation`:
+>
+> ```
+> at urlParse (node:url:136:13)
+> at go.request                        (out/vs/code/node/cliProcessMain.js)
+> at async Qi.queryRawGalleryExtensions (out/vs/code/node/cliProcessMain.js)
+> at async Qi.getExtensions             (out/vs/code/node/cliProcessMain.js)
+> at async Ds.updateMetadata            (out/vs/code/node/cliProcessMain.js)
+> ```
+>
+> Every frame is VS Code's. Once the install has succeeded, the CLI asks the Marketplace
+> for the extension's metadata, and its HTTP client still calls `url.parse()`, which
+> Node 24 deprecates. Nothing in this repository is on that stack — installing a VSIX
+> never executes extension code, and a VSIX containing nothing but a `package.json`
+> prints the same warning. So does `code --update-extensions`, with no VSIX at all.
+> Still present in 1.136.0-insider, so it will not clear on the next update
 > ([microsoft/vscode#301941](https://github.com/microsoft/vscode/issues/301941),
 > [microsoft/vscode#319867](https://github.com/microsoft/vscode/issues/319867)).
-> Note that `code --trace-deprecation` does not get you the stack: the `code` CLI hands
-> unknown flags to Electron rather than to Node, and says so. Pass it to the Node
-> process instead, with `NODE_OPTIONS=--trace-deprecation`. The install still succeeded,
-> so it is safe to ignore. To silence it:
+>
+> The install is unaffected. To not see it, pass the flag to Node rather than to the CLI:
 >
 > ```sh
 > NODE_OPTIONS=--no-deprecation code --install-extension claude-usage-monitor-*.vsix
 > ```
+>
+> Installing from the Extensions view (`...` → **Install from VSIX...**) avoids it too —
+> that path never runs the CLI. Note that `code --trace-deprecation` does *not* print the
+> stack: the `code` CLI hands unknown flags to Electron rather than to Node, and says so.
 
 To try it without installing, open the repo in VS Code and press <kbd>F5</kbd> for an
 Extension Development Host.
@@ -216,31 +229,36 @@ npm test           # node:test unit tests
 npm run package    # build a .vsix
 ```
 
+`@types/node` tracks the Node that VS Code bundles — 24 — rather than the newest release,
+so the types describe the runtime the extension actually gets. There are no runtime
+dependencies; everything in `devDependencies` is build- or packaging-time only.
+
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host.
 
 ### Releasing
 
-CI builds and tests every push and attaches the `.vsix` to the run. There are two ways
-to turn one of those builds into a release asset.
+CI builds and tests every push and attaches the `.vsix` to the run. Two paths turn one of
+those builds into a release, and both keep `package.json` and the tag in lockstep.
 
-**How to name a version.** A release tag is `v` followed by the exact `package.json`
-version — `v0.3.3`, not `0.3.3` and not `V0.3.3`. Don't type the version in two places:
-let npm write both, and push the tag it made.
+**From the Actions tab** — the usual way. Open **Build** → **Run workflow**, choose
+`patch`, `minor` or `major`, and run it. CI bumps `package.json`, commits that bump, tags
+it, pushes both, then publishes the VSIX under that tag. No version to type anywhere.
+
+**From your machine**, if you would rather do it locally:
 
 ```sh
 npm version patch      # or minor / major — bumps package.json and creates the v… tag
 git push --follow-tags
 ```
 
-Prefer this path, because it commits the bump. The tag and the shipped VSIX then agree
-with what is on `main`.
+**How a version is named.** A release tag is `v` followed by the exact `package.json`
+version — `v0.4.1`. You never write it twice: `npm version` produces both, on either path.
+A tag that disagrees with `package.json` fails the build instead of publishing a VSIX
+whose name does not match its source.
 
-Or start the **Build** workflow by hand from the Actions tab and fill in `release_tag`
-(e.g. `v0.3.3`), anchored to the commit the run built — the path to use where pushing a
-tag is not allowed. It stamps that version onto the build **without committing it**, so
-`package.json` stays behind unless you bump it separately. Every release from 0.2.1 to
-0.3.2 went out this way, which is how `package.json` sat at `0.2.0` for six releases. If
-you use this path, land an `npm version` bump as well.
+Releases 0.2.1 through 0.4.0 predate this. The Actions path used to stamp the version onto
+the build with `--no-git-tag-version` and never commit it, so `package.json` stayed at
+`0.2.0` across six releases, and then at `0.3.3` while 0.4.0 shipped.
 
 ## License
 
